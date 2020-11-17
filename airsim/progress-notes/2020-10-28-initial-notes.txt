@@ -1,0 +1,31 @@
+# Initial notes on AirSim
+
+## Cube flight pattern
+
+Took me about 2 hours to get this working, maybe?
+Most of the time was spent figuring out idiosyncracies of the platform
+(negative Z is up, camera settings) and just messing up things like
+calling .join() after async methods or making sure to exit/clean up
+properly at the end of the simulation.
+
+For the first iteration I just used `moveOnPathAsync`, which is obviously
+a very high-level function call.
+But there are lower-level calls available, too, particularly
+moveByRollPitchYawrateThrottleAsync which I suspect may match the Crazyflie
+API capabilities pretty well.
+
+### Settings
+
+I added these settings to the settings.json file in "My Documents/AirSim":
+
+```
+{
+  ...,
+  "SimMode": "Multirotor",
+  "ViewMode": "Manual"
+}
+```
+
+Did this to get a fixed camera so I could see the flight pattern more clearly.
+It was a bit hard to tell what was going on with the camera following
+the drone around all the time.

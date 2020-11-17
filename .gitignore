@@ -1,0 +1,9 @@
+# Ignorable files
+*.mp4
+
+# Editor stuff
+.vscode
+
+# AirSim library code and binaries
+/airsim/AirSim
+/airsim/Soccer_Field
