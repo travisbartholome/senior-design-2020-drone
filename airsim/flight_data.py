@@ -53,80 +53,88 @@ MAX_THRUST = 1.0
 # Note: min thrust to overcome gravity: 0.58 in simulation
 # Note: max thrust supported in airsim: 1
 DELTA_TIME = 0.01 # Crazyflie docs suggest tick rate of 100Hz
-startTime = time.time()
 
-# Lists for data collection
-tData = []
-zData = []
+def runSimulation(t_t, t_r, t_tot):
+    """
+    Reusable method to run a single flight trajectory
 
-# Hover to start position - see hover_land.py
-hoverPid = PID(
-    Kp=-0.4,
-    Ki=-1,
-    Kd=-1,
-    setpoint=Z_TARGET,
-    sample_time=DELTA_TIME,
-    output_limits=(MIN_THRUST, MAX_THRUST))
-currentHeight = getDroneZPosition(client)
-thrust = hoverPid(currentHeight) # Set initial thrust value
-print("Starting at z=%.3f" % currentHeight)
-while (time.time() - startTime < 20): # Run control loop for 20 seconds
-    tData.append(time.time() - startTime)
-    zData.append(currentHeight)
-    
-    client.moveByRollPitchYawThrottleAsync(0, 0, 0, thrust, DELTA_TIME).join()
+    Args:
+        t_t (float): Thrust switching time
+        t_r (float): Rotation switching time
+        t_tot (float): Total flight time
+    """
+    startTime = time.time()
+
+    # Lists for data collection
+    tData = []
+    zData = []
+
+    # Hover to start position - see hover_land.py
+    hoverPid = PID(
+        Kp=-0.4,
+        Ki=-1,
+        Kd=-1,
+        setpoint=Z_TARGET,
+        sample_time=DELTA_TIME,
+        output_limits=(MIN_THRUST, MAX_THRUST))
     currentHeight = getDroneZPosition(client)
-    thrust = hoverPid(currentHeight)
-currentHeight = getDroneZPosition(client)
-print("Hovering at z=%.3f" % currentHeight)
+    thrust = hoverPid(currentHeight) # Set initial thrust value
+    print("Starting at z=%.3f" % currentHeight)
+    while (time.time() - startTime < 20): # Run control loop for 20 seconds
+        tData.append(time.time() - startTime)
+        zData.append(currentHeight)
+        
+        client.moveByRollPitchYawThrottleAsync(0, 0, 0, thrust, DELTA_TIME).join()
+        currentHeight = getDroneZPosition(client)
+        thrust = hoverPid(currentHeight)
+    currentHeight = getDroneZPosition(client)
+    print("Hovering at z=%.3f" % currentHeight)
 
-# Test plotting
-# TODO: remove, probably
-plt.figure()
-plt.plot(tData, zData)
-plt.savefig("./local-figures/hover-data.png")
+    # ~~~~~~~~~~~~~~~~~~~~
 
-# ~~~~~~~~~~~~~~~~~~~~
-
-# Run flight sequence
-T_T = 0 # Thrust switching time
-T_R = 1 # Rotation switching time
-T_TOT = 5 # Total flight time
-ROT_SPEED = 1 # Rotation speed in rad/s # TODO: match to paper's assumptions?
-tData = []
-zData = []
-yData = []
-startTime = time.time()
-print("Starting flight sequence")
-currentTime = time.time() - startTime
-roll = 0 # Start with no roll
-while (currentTime < T_TOT):
-    # Data capture
-    tData.append(currentTime)
-    # Use -z so our final results use +z as the up direction
-    zData.append(-getDroneZPosition(client))
-    yData.append(getDroneYPosition(client))
-
-    # Set thrust and roll for next time segment
-    thrust = MIN_THRUST if (currentTime < T_T) else MAX_THRUST
-    roll = roll + ROT_SPEED * DELTA_TIME if (currentTime < T_R) else roll
-
-    # Move
-    # Use roll for rotation
-    client.moveByRollPitchYawThrottleAsync(roll, 0, 0, thrust, DELTA_TIME).join()
-
-    # Update time
+    # Run flight sequence
+    ROT_SPEED = 1 # Rotation speed in rad/s # TODO: match to paper's assumptions?
+    tData = []
+    zData = []
+    yData = []
+    startTime = time.time()
+    print("Starting flight sequence")
     currentTime = time.time() - startTime
-plt.figure()
-plt.plot(yData, zData)
-plt.title(f"Flight path with t_T={T_T} and t_R={T_R}")
-plt.xlabel("Horizontal position")
-plt.ylabel("Vertical position")
-plt.savefig("./local-figures/flight-data.png")
+    roll = 0 # Start with no roll
+    while (currentTime < t_tot):
+        # Data capture
+        tData.append(currentTime)
+        # Use -z so our final results use +z as the up direction
+        zData.append(-getDroneZPosition(client))
+        yData.append(getDroneYPosition(client))
+
+        # Set thrust and roll for next time segment
+        thrust = MIN_THRUST if (currentTime < t_t) else MAX_THRUST
+        roll = roll + ROT_SPEED * DELTA_TIME if (currentTime < t_r) else roll
+
+        # Move
+        # Use roll for rotation
+        client.moveByRollPitchYawThrottleAsync(roll, 0, 0, thrust, DELTA_TIME).join()
+
+        # Update time
+        currentTime = time.time() - startTime
+    plt.plot(yData, zData)
+    plt.title(f"Flight path with $t_T={t_t}$, $t_R={t_r}$, and $t_{{tot}}={t_tot}$")
+    plt.xlabel("Horizontal position")
+    plt.ylabel("Vertical position")
+    plt.savefig("./local-figures/flight-data.png")
+
+    # Wait and then reset simulator
+    time.sleep(2)
+    print("Resetting simulator...")
+    client.reset()
+
+# Run a one-shot simulation
+runSimulation(0, 1, 5)
 
 # Wait for a short time, then clean up simulator
 time.sleep(5)
-print("Cleaning up and resetting simulator...")
+print("Cleaning up simulator...")
 client.armDisarm(False)
 client.reset()
 client.enableApiControl(False)
