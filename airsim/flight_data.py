@@ -47,7 +47,7 @@ client.armDisarm(True)
 
 # Define system parameters
 GROUND_Z_VAL = getDroneZPosition(client) # Starting height is considered the "ground"
-Z_TARGET = -5 # Target hover height
+Z_HOVER = -5 # Target hover height
 MIN_THRUST = 0.53 # Min thrust to overcome gravity, minus a little # TODO: calibrate?
 MAX_THRUST = 1.0
 # Note: min thrust to overcome gravity: 0.58 in simulation
@@ -63,6 +63,9 @@ def runSimulation(t_t, t_r, t_tot):
         t_r (float): Rotation switching time
         t_tot (float): Total flight time
     """
+    client.enableApiControl(True)
+    client.armDisarm(True)
+
     startTime = time.time()
 
     # Lists for data collection
@@ -74,7 +77,7 @@ def runSimulation(t_t, t_r, t_tot):
         Kp=-0.4,
         Ki=-1,
         Kd=-1,
-        setpoint=Z_TARGET,
+        setpoint=Z_HOVER,
         sample_time=DELTA_TIME,
         output_limits=(MIN_THRUST, MAX_THRUST))
     currentHeight = getDroneZPosition(client)
@@ -105,7 +108,8 @@ def runSimulation(t_t, t_r, t_tot):
         # Data capture
         tData.append(currentTime)
         # Use -z so our final results use +z as the up direction
-        zData.append(-getDroneZPosition(client))
+        # Also adjust z to be relative to the starting position
+        zData.append(-(getDroneZPosition(client) - Z_HOVER))
         yData.append(getDroneYPosition(client))
 
         # Set thrust and roll for next time segment
@@ -119,18 +123,44 @@ def runSimulation(t_t, t_r, t_tot):
         # Update time
         currentTime = time.time() - startTime
     plt.plot(yData, zData)
-    plt.title(f"Flight path with $t_T={t_t}$, $t_R={t_r}$, and $t_{{tot}}={t_tot}$")
-    plt.xlabel("Horizontal position")
-    plt.ylabel("Vertical position")
-    plt.savefig("./local-figures/flight-data.png")
 
-    # Wait and then reset simulator
-    time.sleep(2)
+    # Reset simulator
     print("Resetting simulator...")
     client.reset()
+    time.sleep(2)
 
 # Run a one-shot simulation
-runSimulation(0, 1, 5)
+plt.figure()
+t_t = 0
+t_r = 1
+t_tot = 5
+runSimulation(t_t, t_r, t_tot)
+plt.title(f"Flight path with $t_T={t_t}$, $t_R={t_r}$, and $t_{{tot}}={t_tot}$")
+plt.xlabel("Horizontal position")
+plt.ylabel("Vertical position")
+plt.savefig("./local-figures/flight-data.png")
+
+# Run a series of simulations, shown on the same plot
+print("Running multiple-simulation series...")
+plt.figure()
+t_tot = 5
+# Tuples (t_t, t_r)
+parameterPairs = [
+    (0, 1),
+    (2, 1), # Note: not an optimal path
+    (0, 0),
+    (3, 0),
+    (0.4, 2),
+]
+legendStrings = []
+for t_t, t_r in parameterPairs:
+    runSimulation(t_t, t_r, t_tot)
+    legendStrings.append(f"$t_T={t_t}$, $t_R={t_r}$")
+plt.title(f"Flight paths with assorted parameters\n$t_{{tot}}={t_tot}$, min. $u_T={MIN_THRUST}$, max. $u_T={MAX_THRUST}$")
+plt.xlabel("Horizontal position")
+plt.ylabel("Vertical position")
+plt.legend(legendStrings)
+plt.savefig("./local-figures/flight-data-multiple.png")
 
 # Wait for a short time, then clean up simulator
 time.sleep(5)
