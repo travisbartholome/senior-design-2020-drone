@@ -1,6 +1,9 @@
 # Ignorable files
 *.mp4
 
+# Generated figures/plots that we don't want to save
+/airsim/local-figures
+
 # Editor stuff
 .vscode
 

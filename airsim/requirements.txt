@@ -1,2 +1,4 @@
 airsim
 simple-pid
+matplotlib
+numpy
