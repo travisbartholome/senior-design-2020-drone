@@ -53,7 +53,7 @@ client.armDisarm(True)
 
 # Define system parameters
 GROUND_Z_VAL = getDroneZPosition(client) # Starting height is considered the "ground"
-Z_HOVER = -15 # Target hover height
+Z_HOVER = -150 # Target hover height
 MIN_THRUST = 0.53 # Min thrust to overcome gravity, minus a little # TODO: calibrate?
 MAX_THRUST = 1.0
 # Note: min thrust to overcome gravity: 0.58 in simulation
@@ -90,7 +90,7 @@ def runSimulation(t_t, t_r, t_tot):
     currentHeight = getDroneZPosition(client)
     thrust = hoverPid(currentHeight) # Set initial thrust value
     print("Starting at z=%.3f" % currentHeight)
-    while (time.time() - startTime < 15): # Run hover loop for 15 seconds
+    while (time.time() - startTime < 30): # Run hover loop for specified number of seconds
         client.moveByRollPitchYawThrottleAsync(0, 0, 0, thrust, DELTA_TIME).join()
         currentHeight = getDroneZPosition(client)
         thrust = hoverPid(currentHeight)
@@ -105,9 +105,8 @@ def runSimulation(t_t, t_r, t_tot):
     tData = []
     zData = []
     yData = []
-    startTime = time.time()
     print("Starting flight sequence")
-    currentTime = time.time() - startTime
+    currentTime = 0
     roll = 0 # Start with no roll
     while (currentTime < t_tot):
         # Data capture
@@ -123,10 +122,12 @@ def runSimulation(t_t, t_r, t_tot):
 
         # Move
         # Use roll for rotation
+        client.simPause(False)
         client.moveByRollPitchYawThrottleAsync(roll, 0, 0, thrust, DELTA_TIME).join()
+        client.simPause(True)
 
-        # Update time
-        currentTime = time.time() - startTime
+        # Update simulator time
+        currentTime += DELTA_TIME
     
     # Save data for run in global data matrices
     globalTData.append(tData)
@@ -136,6 +137,7 @@ def runSimulation(t_t, t_r, t_tot):
 
     # Reset simulator
     print("Resetting simulator...")
+    client.simPause(False)
     client.reset()
     time.sleep(2)
 
@@ -143,7 +145,7 @@ def runSimulation(t_t, t_r, t_tot):
 print("Running multiple-simulation series...")
 t_tot = 5
 t_t = 0
-for x in range(0, int(5 / 0.2)):
+for x in range(0, int(5 / 0.2) + 1):
     t_r = x * 0.2
     runSimulation(t_t, t_r, t_tot)
 
