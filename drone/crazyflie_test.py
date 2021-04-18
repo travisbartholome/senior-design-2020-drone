@@ -15,15 +15,17 @@ from cflib.crazyflie.syncLogger import SyncLogger
 uri = 'radio://0/80/2M/E7E7E7E7E7'
 
 # Drone movement parameters
-HOVER_HEIGHT = 0.25
+HOVER_HEIGHT = 0.5
 MIN_THRUST = 10001 # Absolute min supported by crazyflie is 10001, may need to use a higher value to fly?
-MAX_THRUST = 60000 # NOTE: max supported is 60000, starting with this for safety
+MAX_THRUST = 40000 # NOTE: max supported is 60000, starting with this for safety
 DELTA_TIME = 0.02 # In seconds
-HOVER_DURATION = 2.5 # In seconds
+LOG_INTERVAL_MS = 100 # In milliseconds
+HOVER_DURATION = 5 # In seconds
 LANDING_SPEED = 0.2 # In m/s
+LANDING_DECREMENT = 0.1 # In meters
 
 # Globals
-_drone_z_position = 0
+_drone_z_position = 0.0
 
 logging.basicConfig(level=logging.INFO)
 
@@ -34,7 +36,9 @@ def unlock_setpoint_commands(cf):
 
 # Logger for position data
 def set_drone_z_position(timestamp, log_data, log_config_name):
+    global _drone_z_position
     PARAMETER_NAME = 'stateEstimate.z'
+
     _drone_z_position = log_data[PARAMETER_NAME] # Update z position global variable
     # print(log_data)
     # print('[%d][%s]: %s = %.3f' % (timestamp, log_config_name, PARAMETER_NAME, log_data[PARAMETER_NAME]))
@@ -57,9 +61,13 @@ def run_hover_sequence(cf):
 # Landing sequence
 # Immediately sends a hover setpoint to stop the drone's flight, then descends slowly
 def run_landing_sequence(cf):
-    print ('here')
-    while (_drone_z_position > 0.05): # While height > 5 cm
-        new_height = max(_drone_z_position - 0.25, 0.1)
+    LAND_HEIGHT = 0.05 # Height in meters after which the drone will drop
+    while (_drone_z_position > (LAND_HEIGHT + 0.05)):
+        print('in land loop')
+        new_height = max(_drone_z_position - LANDING_DECREMENT, LAND_HEIGHT)
+        print(new_height) # TODO: remove
+        cf.commander.send_hover_setpoint(0, 0, 0, new_height)
+        time.sleep(0.5)
         cf.commander.send_hover_setpoint(0, 0, 0, new_height)
         time.sleep(0.5)
 
@@ -100,7 +108,7 @@ if __name__ == '__main__':
         cf = scf.cf
 
         # Set up logging config
-        log_config = LogConfig(name='Position', period_in_ms=int((1000 * DELTA_TIME) / 2))
+        log_config = LogConfig(name='Position', period_in_ms=LOG_INTERVAL_MS)
         log_config.add_variable('stateEstimate.z', 'float')
         cf.log.add_config(log_config)
         log_config.data_received_cb.add_callback(set_drone_z_position)
@@ -126,6 +134,6 @@ if __name__ == '__main__':
         #     # Movement commands here
 
 
-        time.sleep(3)
+        time.sleep(1)
         print("~~~~~~ Crazyflie disconnected ~~~~~~")
 

@@ -10,3 +10,6 @@
 # AirSim library code and binaries
 /airsim/AirSim
 /airsim/environments
+
+# Crazyflie python lib cache folder
+/drone/cache
