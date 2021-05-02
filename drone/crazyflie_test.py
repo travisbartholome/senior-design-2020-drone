@@ -3,6 +3,9 @@ import time
 
 from simple_pid import PID
 
+
+from threading import Thread
+
 import cflib.crtp
 from cflib.crazyflie import Crazyflie
 from cflib.crazyflie.syncCrazyflie import SyncCrazyflie
@@ -10,15 +13,16 @@ from cflib.positioning.motion_commander import MotionCommander
 
 from cflib.crazyflie.log import LogConfig
 from cflib.crazyflie.syncLogger import SyncLogger
+from cflib.utils import uri_helper
 
 # URI to the Crazyflie to connect to
-uri = 'radio://0/80/2M/E7E7E7E7E7'
+uri = uri_helper.uri_from_env(default='radio://0/80/2M/E7E7E7E7E7')
 
 # Drone movement parameters
 HOVER_HEIGHT = 0.5
 # Min and max 
 MIN_THRUST = 20000 # Absolute min supported by crazyflie is 10001
-MAX_THRUST = 36000 # NOTE: max supported is 60000
+MAX_THRUST = 47000 # NOTE: max supported is 60000, 45000 ia enough to move the drone upward slowly
 AVG_THRUST = int((MIN_THRUST + MAX_THRUST) / 2)
 DELTA_TIME = 0.02 # In seconds
 LOG_INTERVAL_MS = 50 # In milliseconds
@@ -96,16 +100,13 @@ def run_landing_sequence(cf):
 
 # Run flight sequence
 # cf - crazyflie object
-# mc - MotionController object
-def run_flight_sequence(cf):
-    ROT_SPEED = 1 # Rotation speed in rad/s # TODO: match to paper's assumptions?
+# t_r - Roll switch time (roll before, straight after)
+# t_t - Thrust switch time (min thrust before, max thrust after)
+# t_tot - Total flight time
+def run_flight_sequence(cf, t_r, t_t, t_tot):
+    ROT_SPEED = 10 # Rotation speed in deg/s # TODO: match to paper's assumptions?
 
     print("Starting flight sequence")
-
-    # Flight sequence parameters
-    t_r = 1 # Roll switch time
-    t_t = 1 # Thrust switch time
-    t_tot = 5 # Total flight time
 
     current_time = 0
     roll = 0 # Start with no roll
@@ -122,6 +123,14 @@ def run_flight_sequence(cf):
         # Update time tracker and sleep
         current_time += DELTA_TIME
         time.sleep(DELTA_TIME)
+
+# def change_led_colors(cf):
+#     print('~~~~~~ Color change test ~~~~~~')
+#     # Set factory test effect
+#     cf.param.set_value('ring.effect', '1')
+#     # time.sleep(2)
+#     # cf.param.set_value('ring.effect', '1')
+#     # time.sleep(2)
 
 if __name__ == '__main__':
     # Initialize the low-level drivers
@@ -142,22 +151,25 @@ if __name__ == '__main__':
 
         print("~~~~~~ Crazyflie connected ~~~~~~")
 
-        time.sleep(1)
+        # print('~~~~~~ Create LED modifier thread ~~~~~~')
+        # led_thread = Thread(target=change_led_colors, args=(cf,))
+        # led_thread.start()
+        # time.sleep(10)
+
         print('~~~~~~ Running hover sequence ~~~~~~')
         unlock_setpoint_commands(cf)
         run_hover_sequence(cf)
 
         print('~~~~~~ Running flight sequence ~~~~~~')
-        # run_flight_sequence(cf)
+
+        # Flight sequence parameters
+        t_r = 0 # Roll switch time
+        t_t = 0 # Thrust switch time
+        t_tot = 1.5 # Total flight time
+        run_flight_sequence(cf, t_r, t_t, t_tot)
 
         print('~~~~~~ Running landing sequence ~~~~~~')
         run_landing_sequence(cf)
-
-        # Old hover method using MotionCommander - doesn't seem to allow flight sequence to run :(
-        # with MotionCommander(scf, default_height=HOVER_HEIGHT) as mc:
-        #     time.sleep(10) # Wait for automatic hover sequence to complete
-        #     # Movement commands here
-
 
         time.sleep(1)
         print("~~~~~~ Crazyflie disconnected ~~~~~~")
